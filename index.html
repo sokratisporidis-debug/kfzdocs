@@ -265,12 +265,12 @@ header{background:var(--sur);border-bottom:1px solid var(--bor);padding:0 1.2rem
     <div class="mh"><div class="mt">⚙️ KI-Einstellungen</div><button class="xb" id="xbA">✕</button></div>
     <div class="mb">
       <div style="background:rgba(75,123,232,.1);border:1px solid rgba(75,123,232,.3);border-radius:8px;padding:.85rem;margin-bottom:.9rem;font-size:.8rem;line-height:1.6;color:var(--mut)">
-        ℹ️ Für KI-Auslesen wird ein <strong style="color:var(--txt)">OpenRouter API-Key</strong> benötigt.<br><br>
-        Kostenlos: <strong style="color:var(--acc)">openrouter.ai/keys</strong><br>
-        ✅ Kostenlose Modelle · Keine Kreditkarte nötig<br>
+        ℹ️ Für KI-Auslesen wird ein <strong style="color:var(--txt)">Anthropic API-Key</strong> benötigt.<br><br>
+        Key erstellen unter:<br><strong style="color:var(--acc)">console.anthropic.com/keys</strong><br><br>
+        ⚡ Claude Sonnet – sehr genaues Auslesen<br>
         Key wird nur lokal gespeichert.
       </div>
-      <div class="fg f1"><p><label>API Key (sk-or-v1-...)</label><input type="password" id="aKeyI" placeholder="sk-or-v1-..." style="font-family:monospace;font-size:.76rem"></p></div>
+      <div class="fg f1"><p><label>API Key (sk-or-v1-...)</label><input type="password" id="aKeyI" placeholder="sk-ant-api03-..." style="font-family:monospace;font-size:.76rem"></p></div>
       <div id="aKeySt" style="margin-top:.45rem;font-size:.76rem"></div>
     </div>
     <div class="mf">
@@ -574,43 +574,50 @@ var AI_PROMPT='Dies ist ein deutscher Fahrzeugschein (Zulassungsbescheinigung Te
 
 async function aiRead(b64){
   var apiKey=localStorage.getItem('kfz_key')||'';
-  if(!apiKey){if(confirm('Kein API Key.\nJetzt eingeben?\n\nKostenlos auf: openrouter.ai/keys')){openApi();}return;}
+  if(!apiKey){if(confirm('Kein API Key.\nJetzt eingeben?\n\nconsole.anthropic.com/keys')){openApi();}return;}
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;';
-  ov.innerHTML='<div style="font-size:2.2rem">🤖</div><div style="color:#e8b84b;font-family:Bebas Neue,sans-serif;font-size:1.3rem;letter-spacing:2px">KI liest Fahrzeugschein...</div><div style="color:#6b7390;font-size:.8rem" id="aiMdl">Verbinde...</div><div style="width:170px;height:4px;background:#252a3a;border-radius:2px;overflow:hidden"><div id="aiBar" style="width:0%;height:100%;background:#e8b84b;border-radius:2px;transition:width 2s"></div></div>';
+  ov.innerHTML='<div style="font-size:2.2rem">🤖</div><div style="color:#e8b84b;font-family:Bebas Neue,sans-serif;font-size:1.3rem;letter-spacing:2px">KI liest Fahrzeugschein...</div><div style="color:#6b7390;font-size:.8rem">Claude analysiert das Foto...</div><div style="width:170px;height:4px;background:#252a3a;border-radius:2px;overflow:hidden"><div id="aiBar" style="width:0%;height:100%;background:#e8b84b;border-radius:2px;transition:width 3s"></div></div>';
   document.body.appendChild(ov);
-  setTimeout(function(){var b=document.getElementById('aiBar');if(b)b.style.width='80%';},100);
-
-  var lastErr='Kein Modell verfügbar';
-  for(var i=0;i<MODELS.length;i++){
-    var mdl=MODELS[i];
-    var ml=document.getElementById('aiMdl');
-    if(ml)ml.textContent='Versuche: '+mdl.split('/').pop().split(':')[0];
-    try{
-      var res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,'HTTP-Referer':window.location.href,'X-Title':'KFZDocs Manager'},
-        body:JSON.stringify({model:mdl,max_tokens:1000,messages:[{role:'user',content:[{type:'image_url',image_url:{url:b64}},{type:'text',text:AI_PROMPT}]}]})
-      });
-      var dat=await res.json();
-      if(dat.error){lastErr=dat.error.message;continue;}
-      if(!dat.choices||!dat.choices[0]||!dat.choices[0].message){lastErr='Keine Antwort vom Modell';continue;}
-      var msgContent=dat.choices[0].message.content;
-      if(!msgContent){lastErr='Modell hat leere Antwort geliefert';continue;}
-      var txt=msgContent.trim();
-      var parsed;
-      try{parsed=JSON.parse(txt);}catch(e){var m=txt.match(/\{[\s\S]*\}/);if(m)parsed=JSON.parse(m[0]);else{lastErr='Kein JSON';continue;}}
-      if(document.body.contains(ov))document.body.removeChild(ov);
-      var fm={vn:'fVn',nn:'fNn',adr:'fAdr',kfz:'fKfz',hst:'fHst',mod:'fMod',sn1:'fSn1',sn2:'fSn2',bj:'fBj',fin:'fFin',ez:'fEz',hub:'fHub',ps:'fPs',kraft:'fKraft',farbe:'fFarbe'};
-      var n=0;
-      Object.entries(fm).forEach(function(e){if(parsed[e[0]]){gi(e[1]).value=e[0]==='kfz'?parsed[e[0]].toUpperCase():parsed[e[0]];n++;}});
-      if(parsed.typ&&['PKW','LKW','Motorrad','Andere'].includes(parsed.typ))gi('fTypFz').value=parsed.typ;
-      alert(n>0?'✅ KI hat '+n+' Felder ausgefüllt!\nBitte Daten prüfen.':'⚠️ KI konnte keine Daten lesen.\nFoto scharf und beleuchtet aufnehmen.');
-      return;
-    }catch(e){lastErr=e.message;continue;}
+  setTimeout(function(){var b=document.getElementById('aiBar');if(b)b.style.width='85%';},100);
+  try{
+    var b64data=b64.split(',')[1];
+    var mtype=b64.split(';')[0].split(':')[1];
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-5',
+        max_tokens:1000,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:mtype,data:b64data}},
+            {type:'text',text:AI_PROMPT}
+          ]
+        }]
+      })
+    });
+    var dat=await res.json();
+    if(document.body.contains(ov))document.body.removeChild(ov);
+    if(dat.error){alert('❌ API Fehler: '+dat.error.message+'\n\nBitte Key prüfen auf console.anthropic.com');return;}
+    var txt=dat.content[0].text.trim();
+    var parsed;
+    try{parsed=JSON.parse(txt);}catch(e){var m=txt.match(/\{[\s\S]*\}/);if(m)parsed=JSON.parse(m[0]);else throw new Error('Kein JSON in Antwort');}
+    var fm={vn:'fVn',nn:'fNn',adr:'fAdr',kfz:'fKfz',hst:'fHst',mod:'fMod',sn1:'fSn1',sn2:'fSn2',bj:'fBj',fin:'fFin',ez:'fEz',hub:'fHub',ps:'fPs',kraft:'fKraft',farbe:'fFarbe'};
+    var n=0;
+    Object.entries(fm).forEach(function(e){if(parsed[e[0]]){gi(e[1]).value=e[0]==='kfz'?parsed[e[0]].toUpperCase():parsed[e[0]];n++;}});
+    if(parsed.typ&&['PKW','LKW','Motorrad','Andere'].includes(parsed.typ))gi('fTypFz').value=parsed.typ;
+    alert(n>0?'✅ Claude hat '+n+' Felder ausgefüllt!\nBitte Daten prüfen.':'⚠️ Claude konnte keine Daten lesen.\nFoto scharf und gut beleuchtet aufnehmen.');
+  }catch(err){
+    if(document.body.contains(ov))document.body.removeChild(ov);
+    alert('❌ Fehler beim KI-Auslesen.\n'+err.message+'\n\nBitte manuell ausfüllen.');
   }
-  if(document.body.contains(ov))document.body.removeChild(ov);
-  alert('❌ KI nicht verfügbar.\n'+lastErr+'\n\nBitte später erneut versuchen oder manuell ausfüllen.');
 }
 
 })();
