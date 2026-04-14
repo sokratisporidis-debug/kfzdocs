@@ -487,40 +487,70 @@ function onPhoto(e){
 }
 
 function compressImage(dataUrl, callback){
-  var img=new Image();
-  img.onload=function(){
-    var canvas=document.createElement('canvas');
-    var maxW=1600, maxH=1600;
-    var w=img.width, h=img.height;
-    // Scale down if too large
-    if(w>maxW||h>maxH){
-      if(w/h>maxW/maxH){h=Math.round(h*maxW/w);w=maxW;}
-      else{w=Math.round(w*maxH/h);h=maxH;}
-    }
-    canvas.width=w;canvas.height=h;
-    var ctx=canvas.getContext('2d');
-    ctx.drawImage(img,0,0,w,h);
-    // Start with quality 0.85, reduce until under 4MB
-    var quality=0.85;
-    var result=canvas.toDataURL('image/jpeg',quality);
-    while(result.length>4*1024*1024*1.37 && quality>0.3){
-      quality-=0.1;
-      result=canvas.toDataURL('image/jpeg',quality);
-    }
-    callback(result);
-  };
-  img.src=dataUrl;
+  try{
+    var img=new Image();
+    img.onerror=function(){
+      // If image fails to load, use original
+      callback(dataUrl);
+    };
+    img.onload=function(){
+      try{
+        var canvas=document.createElement('canvas');
+        var maxW=1600, maxH=1600;
+        var w=img.width, h=img.height;
+        if(w>maxW||h>maxH){
+          if(w/h>maxW/maxH){h=Math.round(h*maxW/w);w=maxW;}
+          else{w=Math.round(w*maxH/h);h=maxH;}
+        }
+        canvas.width=w;canvas.height=h;
+        var ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        var quality=0.85;
+        var result=canvas.toDataURL('image/jpeg',quality);
+        while(result.length>4*1024*1024*1.37&&quality>0.3){
+          quality-=0.1;
+          result=canvas.toDataURL('image/jpeg',quality);
+        }
+        callback(result);
+      }catch(e){
+        // If canvas fails, use original
+        callback(dataUrl);
+      }
+    };
+    img.src=dataUrl;
+  }catch(e){
+    // If anything fails, use original
+    callback(dataUrl);
+  }
 }
 
 function saveRec(){
-  var vn=gi('fVn').value.trim(),nn=gi('fNn').value.trim();
-  if(!vn||!nn){alert('Bitte Vor- und Nachname eingeben.');return;}
-  function g(id){return gi(id).value.trim();}
-  var rec={id:editId||Date.now().toString(),cr:editId?(recs.find(function(r){return r.id===editId;})||{}).cr||Date.now():Date.now(),photo:photoDat};
-  Object.entries(FLDS).forEach(function(e){rec[e[1]]=g(e[0]);});
-  rec.vn=vn;rec.nn=nn;rec.kfz=g('fKfz').toUpperCase();rec.typ=gi('fTypFz').value;
-  recs=editId?recs.map(function(r){return r.id===editId?rec:r;}):[rec].concat(recs);
-  save();cl('ovF');render();renderRem();
+  try{
+    var vn=gi('fVn').value.trim(),nn=gi('fNn').value.trim();
+    if(!vn||!nn){alert('Bitte Vor- und Nachname eingeben.');return;}
+    function g(id){var el=gi(id);return el?el.value.trim():'';}
+    var existing=recs.find(function(r){return r.id===editId;});
+    var rec={
+      id:editId||Date.now().toString(),
+      cr:existing?existing.cr:Date.now(),
+      photo:photoDat||null
+    };
+    Object.entries(FLDS).forEach(function(e){rec[e[1]]=g(e[0]);});
+    rec.vn=vn;rec.nn=nn;
+    rec.kfz=g('fKfz').toUpperCase();
+    rec.typ=gi('fTypFz').value;
+    if(editId){
+      recs=recs.map(function(r){return r.id===editId?rec:r;});
+    }else{
+      recs=[rec].concat(recs);
+    }
+    save();
+    cl('ovF');
+    render();
+    renderRem();
+  }catch(err){
+    alert('Fehler beim Speichern: '+err.message);
+  }
 }
 
 // DETAIL
