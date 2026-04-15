@@ -179,6 +179,12 @@ header{background:var(--sur);border-bottom:1px solid var(--bor);padding:0 1.2rem
   <div class="mo" onclick="event.stopPropagation()">
     <div class="mh"><div class="mt" id="fmT">Neuer Eintrag</div><button class="xb" id="xbF">✕</button></div>
     <div class="mb">
+      <div style="background:rgba(75,123,232,.1);border:1px solid rgba(75,123,232,.3);border-radius:8px;padding:.7rem .9rem;margin-bottom:.7rem;font-size:.76rem;color:var(--mut);line-height:1.6">
+        📷 <strong style="color:var(--txt)">So funktioniert das Foto:</strong><br>
+        1. Foto aufnehmen → KI liest Daten aus<br>
+        2. Foto manuell in Album <strong style="color:var(--acc)">„Fahrzeugscheine"</strong> speichern<br>
+        3. Nur der Dateiname wird als Verweis gespeichert
+      </div>
       <div class="upa" id="upa">
         <input type="file" id="phIn" accept="image/*" capture="environment">
         <div class="upt" id="upt"><span class="ui">📷</span><strong>Foto aufnehmen</strong><span>Kamera oder Galerie</span></div>
@@ -189,6 +195,7 @@ header{background:var(--sur);border-bottom:1px solid var(--bor);padding:0 1.2rem
         <label for="phLib">🖼️ Fotobibliothek</label>
         <input type="file" id="phLib" accept="image/*" style="display:none">
       </div>
+      <div id="photoHint" style="font-size:.75rem;color:var(--mut);margin-bottom:.8rem;min-height:1.2rem"></div>
 
       <div class="fs"><div class="fst">Kundendaten</div>
         <div class="fg">
@@ -286,7 +293,7 @@ header{background:var(--sur);border-bottom:1px solid var(--bor);padding:0 1.2rem
 var recs=[];
 try{recs=JSON.parse(localStorage.getItem('kfzdocs5')||'[]');}catch(e){}
 try{['kfzdocs4','kfzdocs3','kfzdocs_v2','kfzdocs'].forEach(function(k){if(!recs.length){var d=localStorage.getItem(k);if(d)recs=JSON.parse(d);}});}catch(e){}
-var editId=null,photoDat=null;
+var editId=null,photoDat=null,photoRef=null;
 var TODAY=new Date();TODAY.setHours(0,0,0,0);
 function save(){localStorage.setItem('kfzdocs5',JSON.stringify(recs));}
 
@@ -377,7 +384,7 @@ function render(){
   var nS=recs.filter(function(r){return wUg(r)==='o';}).length;
   gi('stG').textContent=recs.length;
   gi('stK').textContent=new Set(recs.map(function(r){return r.vn+r.nn;})).size;
-  gi('stF').textContent=recs.filter(function(r){return r.photo;}).length;
+  gi('stF').textContent=recs.filter(function(r){return r.photoRef;}).length;
   gi('stO').textContent=nO;gi('stS').textContent=nS;
   gi('bdO').textContent=nO;gi('bdO').style.display=nO?'':'none';
   gi('bdS').textContent=nS;gi('bdS').style.display=nS?'':'none';
@@ -399,7 +406,7 @@ function render(){
 function cHTML(r){
   var w=wUg(r);
   var strip=w!=='g'?'<div class="kstrip '+(w==='r'?'r':'o')+'"></div>':'';
-  var ph=r.photo?'<div class="kph"><img src="'+r.photo+'"></div>':'<div class="noph"><div style="font-size:1.9rem">🚗</div><span>Kein Foto</span></div>';
+  var ph=r.photoRef?'<div class="noph"><div style="font-size:1.9rem">📁</div><span style="font-size:.68rem;color:var(--acc)">'+r.photoRef+'</span></div>':'<div class="noph"><div style="font-size:1.9rem">🚗</div><span>Kein Foto</span></div>';
   var us=gUrgs(r);
   var pills=us.filter(function(u){return ug(u.d)==='r'||ug(u.d)==='o';}).map(function(u){return'<span class="sp '+(ug(u.d)==='r'?'spr':'spo')+'">'+u.l+'</span>';}).join('');
   var pb=pills?'<div class="pbdg">'+pills+'</div>':'';
@@ -451,7 +458,7 @@ function renderRem(){
 var FLDS={fVn:'vn',fNn:'nn',fTel:'tel',fMail:'mail',fAdr:'adr',fKfz:'kfz',fHst:'hst',fMod:'mod',fSn1:'sn1',fSn2:'sn2',fBj:'bj',fFin:'fin',fEz:'ez',fKm:'km',fHub:'hub',fPs:'ps',fKraft:'kraft',fFarbe:'farbe',fHu:'hu',fAu:'au',fVs:'vs',fOeld:'oeld',fOelk:'oelk',fSvd:'svd',fSvk:'svk',fRf:'rf',fZr:'zr',fNote:'note'};
 
 function openAdd(){
-  editId=null;photoDat=null;
+  editId=null;photoDat=null;photoRef=null;
   gi('fmT').textContent='Neuer Eintrag';
   Object.keys(FLDS).forEach(function(id){gi(id).value='';});
   gi('fTypFz').value='PKW';
@@ -461,26 +468,53 @@ function openAdd(){
 function openEdt(id){
   cl('ovD');
   var r=recs.find(function(x){return x.id===id;});if(!r)return;
-  editId=id;photoDat=r.photo||null;
+  editId=id;photoDat=null;photoRef=r.photoRef||null;
   gi('fmT').textContent='Eintrag bearbeiten';
   Object.entries(FLDS).forEach(function(e){gi(e[0]).value=r[e[1]]||'';});
   gi('fTypFz').value=r.typ||'PKW';
-  if(r.photo){gi('phPrev').src=r.photo;gi('phPrev').style.display='block';gi('upt').style.display='none';gi('upa').classList.add('hi');}
-  else{resetPh();}
+  var hint=document.getElementById('photoHint');
+  if(r.photoRef){
+    gi('upt').style.display='none';gi('upa').classList.add('hi');
+    if(hint)hint.textContent='📁 '+r.photoRef+' (im Album Fahrzeugscheine)';
+    // Show placeholder icon instead of actual photo
+    gi('phPrev').style.display='none';
+    gi('upa').style.background='rgba(232,184,75,0.08)';
+    gi('upa').innerHTML+='<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none"><div style="font-size:2rem">📁</div><div style="font-size:.78rem;color:var(--acc);margin-top:.3rem">'+r.photoRef+'</div><div style="font-size:.7rem;color:var(--mut)">Im Album Fahrzeugscheine</div></div>';
+  } else {resetPh();}
   op('ovF');
 }
-function resetPh(){gi('phPrev').src='';gi('phPrev').style.display='none';gi('upt').style.display='flex';gi('upa').classList.remove('hi');gi('phIn').value='';gi('phLib').value='';}
+function resetPh(){
+  gi('phPrev').src='';gi('phPrev').style.display='none';
+  gi('upt').style.display='flex';gi('upa').classList.remove('hi');
+  gi('phIn').value='';gi('phLib').value='';
+  gi('upa').style.background='';
+  // Remove any overlay divs added
+  gi('upa').querySelectorAll('div[style*="position:absolute"]').forEach(function(el){el.remove();});
+  var hint=document.getElementById('photoHint');
+  if(hint)hint.textContent='';
+  photoRef=null;
+}
 
 function onPhoto(e){
   var f=e.target.files[0];if(!f)return;
+  var fname=f.name||('Fahrzeugschein_'+Date.now());
+  // Store filename as reference (not the image data)
+  photoRef=fname;
+  // Show preview temporarily (not saved)
   var rd=new FileReader();
   rd.onload=function(ev){
-    // Compress image before storing and sending to API
     compressImage(ev.target.result, function(compressed){
-      photoDat=compressed;
+      // Show preview in form only
       gi('phPrev').src=compressed;gi('phPrev').style.display='block';
       gi('upt').style.display='none';gi('upa').classList.add('hi');
-      setTimeout(function(){if(confirm('🤖 KI-Auslesen\n\nSoll die KI die Daten automatisch auslesen?')){aiRead(compressed);}},300);
+      // Update hint
+      var hint=document.getElementById('photoHint');
+      if(hint)hint.textContent='📁 '+fname+' (nur zur Auswertung – wird nicht gespeichert)';
+      setTimeout(function(){
+        if(confirm('🤖 KI-Auslesen\n\nSoll die KI die Daten automatisch auslesen?')){
+          aiRead(compressed);
+        }
+      },300);
     });
   };
   rd.readAsDataURL(f);
@@ -533,7 +567,8 @@ function saveRec(){
     var rec={
       id:editId||Date.now().toString(),
       cr:existing?existing.cr:Date.now(),
-      photo:photoDat||null
+      photo:null,
+      photoRef:photoRef||null
     };
     Object.entries(FLDS).forEach(function(e){rec[e[1]]=g(e[0]);});
     rec.vn=vn;rec.nn=nn;
@@ -544,12 +579,30 @@ function saveRec(){
     }else{
       recs=[rec].concat(recs);
     }
-    save();
+      save();
     cl('ovF');
     render();
     renderRem();
   }catch(err){
-    alert('Fehler beim Speichern: '+err.message);
+    if(err.name==='QuotaExceededError'||err.message.includes('quota')||err.message.includes('QuotaExceeded')||err.message.includes('Quota')){
+      // Storage full - try saving without photos
+      if(confirm('⚠️ Speicher voll!\n\nDie Fotos verbrauchen zu viel Platz.\n\nOK = Eintrag ohne Foto speichern\nAbbrechen = Abbrechen')){
+        rec.photo=null;
+        recs=editId?recs.map(function(r){return r.id===editId?rec:r;}):[rec].concat(recs);
+        try{
+          save();
+          cl('ovF');render();renderRem();
+          alert('✅ Gespeichert (ohne Foto).\n\nTipp: Alte Einträge exportieren und Fotos löschen um Speicher freizumachen.');
+        }catch(e2){
+          // Still full - try to free space by removing old photos
+          recs.forEach(function(r){if(r.id!==rec.id)r.photo=null;});
+          save();cl('ovF');render();renderRem();
+          alert('✅ Gespeichert.\n\nAlle alten Fotos wurden entfernt um Speicher freizumachen.\nBitte ein Backup (Export) machen!');
+        }
+      }
+    } else {
+      alert('Fehler beim Speichern: '+err.message);
+    }
   }
 }
 
@@ -557,7 +610,9 @@ function saveRec(){
 function openDet(id){
   var r=recs.find(function(x){return x.id===id;});if(!r)return;
   gi('dT').textContent=r.vn+' '+r.nn;
-  var ph=r.photo?'<img src="'+r.photo+'" class="dp">':'<div style="width:100%;height:100px;background:var(--sur);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--mut);margin-bottom:1.1rem;font-size:1.8rem">🚗</div>';
+  var ph=r.photoRef
+    ?'<div style="width:100%;background:var(--sur);border-radius:8px;padding:1rem;margin-bottom:1.1rem;display:flex;align-items:center;gap:.8rem"><div style="font-size:1.8rem">📁</div><div><div style="font-size:.78rem;color:var(--mut)">Foto gespeichert in</div><div style="font-weight:600;color:var(--acc);font-size:.88rem">Album: Fahrzeugscheine</div><div style="font-size:.72rem;color:var(--mut);margin-top:2px">'+r.photoRef+'</div></div></div>'
+    :'<div style="width:100%;height:80px;background:var(--sur);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--mut);margin-bottom:1.1rem;font-size:1.8rem">🚗</div>';
   var us=gUrgs(r);
   var urows=us.map(function(u){var g=ug(u.d);if(g==='n'||g==='g')return'';var col=g==='r'?'var(--red)':'var(--ora)';var lb=u.km?(u.df<0?Math.abs(u.df).toLocaleString()+' km überfällig':'noch '+u.df.toLocaleString()+' km'):dl(u.d);return'<div style="display:flex;justify-content:space-between;padding:.38rem .72rem;background:var(--sur);border-radius:6px;margin-bottom:3px;font-size:.8rem"><span>'+u.ic+' '+u.l+'</span><span style="color:'+col+';font-weight:700">'+lb+'</span></div>';}).join('');
   function dr(l,v){if(!v)return'<div class="di"><label>'+l+'</label><span style="color:var(--mut)">—</span></div>';var d=du(v),g=ug(d);var col=g==='r'?'var(--red)':g==='o'?'var(--ora)':'var(--txt)';return'<div class="di"><label>'+l+'</label><span style="color:'+col+'">'+fd(v)+(g==='r'||g==='o'?' <small style="color:'+col+';opacity:.8">('+dl(d)+')</small>':'')+'</span></div>';}
